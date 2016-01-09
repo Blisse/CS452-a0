@@ -2,6 +2,7 @@
 
 #include <flags.h>
 #include <numbers.h>
+#include <common.h>
 
 #include "pio.h"
 #include "circular_buffer.h"
@@ -18,6 +19,38 @@ void pio_setup() {
     circular_buffer_init(&com2_in_buffer);
 }
 
+int pio_receive_buffer_empty(int flags) {
+    return are_all_set(flags, RXFE_MASK);
+}
+
+int pio_transmit_buffer_empty(int flags) {
+    return are_all_set(flags, TXFE_MASK);
+}
+
+int pio_receive_buffer_full(int flags) {
+    return are_all_set(flags, RXFF_MASK);
+}
+
+int pio_transmit_buffer_full(int flags) {
+    return are_all_set(flags, TXFF_MASK);
+}
+
+circular_buffer_t* OUT_BUFFER(int channel) {
+    if (channel == COM1) {
+        return &com1_out_buffer;
+    } else {
+        return &com2_out_buffer;
+    }
+}
+
+circular_buffer_t* IN_BUFFER(int channel) {
+    if (channel == COM1) {
+        return &com1_in_buffer;
+    } else {
+        return &com2_in_buffer;
+    }
+}
+
 /*
  * The UARTs are initialized by RedBoot to the following state
  *  115,200 bps
@@ -27,15 +60,12 @@ void pio_setup() {
  */
 int pio_set_fifo(int channel, int state) {
     int* line = ADDRESS_OF_UART(channel, UART_LCRH_OFFSET);
-    int line_val = *line;
 
     if (state == FIFO_ON) {
-        line_val |= FEN_MASK;
+        set_flags(line, FEN_MASK);
     } else {
-        line_val &= ~FEN_MASK;
+        clear_flags(line, FEN_MASK);
     }
-
-    *line = line_val;
 
     return SUCCESS;
 }
@@ -61,26 +91,18 @@ int pio_set_speed(int channel, int speed) {
     return SUCCESS;
 }
 
-int _pio_write_c(int channel, char c) {
-    int* flags = ADDRESS_OF_UART(channel, UART_FLAG_OFFSET);
+int _pio_write_char(int channel, char c) {
+    // int* flags = ADDRESS_OF_UART(channel, UART_FLAG_OFFSET);
     int* data = ADDRESS_OF_UART(channel, UART_DATA_OFFSET);
-
-    if (*flags & TXFF_MASK) {
-        return E_FAIL;
-    }
 
     *data = c;
 
     return SUCCESS;
 }
 
-int _pio_read_c(int channel, char* c) {
-    int* flags = ADDRESS_OF_UART(channel, UART_FLAG_OFFSET);
+int _pio_read_char(int channel, char* c) {
+    // int* flags = ADDRESS_OF_UART(channel, UART_FLAG_OFFSET);
     int* data = ADDRESS_OF_UART(channel, UART_DATA_OFFSET);
-
-    if (!(*flags & RXFF_MASK)) {
-        return E_FAIL;
-    }
 
     *c = *data;
 
@@ -89,17 +111,11 @@ int _pio_read_c(int channel, char* c) {
 
 int pio_fetch(int channel) {
     int* flags = ADDRESS_OF_UART(channel, UART_FLAG_OFFSET);
+    circular_buffer_t* c_buffer = IN_BUFFER(channel);
     char c;
 
-    circular_buffer_t* c_buffer;
-    if (channel == COM1) {
-        c_buffer = &com1_in_buffer;
-    } else {
-        c_buffer = &com2_in_buffer;
-    }
-
-    while ((*flags & RXFF_MASK) && !circular_buffer_full(c_buffer)) {
-        if (_pio_read_c(channel, &c)) {
+    if (pio_receive_buffer_full(*flags) && circular_buffer_full(c_buffer) == FALSE) {
+        if (_pio_read_char(channel, &c) == SUCCESS) {
             circular_buffer_push(c_buffer, c);
         }
     }
@@ -109,18 +125,12 @@ int pio_fetch(int channel) {
 
 int pio_flush(int channel) {
     int* flags = ADDRESS_OF_UART(channel, UART_FLAG_OFFSET);
+    circular_buffer_t* c_buffer = OUT_BUFFER(channel);
     char c;
 
-    circular_buffer_t* c_buffer;
-    if (channel == COM1) {
-        c_buffer = &com1_out_buffer;
-    } else {
-        c_buffer = &com2_out_buffer;
-    }
-
-    while (!(*flags & TXFF_MASK) && !circular_buffer_empty(c_buffer)) {
+    while (!pio_transmit_buffer_full(*flags) && circular_buffer_empty(c_buffer) == FALSE) {
         if (circular_buffer_get(c_buffer, &c) == SUCCESS) {
-            if (_pio_write_c(channel, c) == SUCCESS) {
+            if (_pio_write_char(channel, c) == SUCCESS) {
                 circular_buffer_pop(c_buffer);
             }
         }
@@ -163,20 +173,22 @@ int pio_put_char_array(int channel, char* buffer, int buffer_size) {
 int pio_get_char(int channel, char* c) {
 
     if (channel == COM1) {
-        if (!circular_buffer_empty(&com1_out_buffer)) {
-            circular_buffer_get(&com1_out_buffer, c);
-        } else {
-            return E_FAIL;
+        if (circular_buffer_empty(&com1_in_buffer) == FALSE) {
+            if (circular_buffer_get(&com1_in_buffer, c) == SUCCESS) {
+                circular_buffer_pop(&com1_in_buffer);
+                return SUCCESS;
+            }
         }
     } else {
-        if (!circular_buffer_empty(&com2_out_buffer)) {
-            circular_buffer_get(&com2_out_buffer, c);
-        } else {
-            return E_FAIL;
+        if (circular_buffer_empty(&com2_in_buffer) == FALSE) {
+            if (circular_buffer_get(&com2_in_buffer, c) == SUCCESS) {
+                circular_buffer_pop(&com2_in_buffer);
+                return SUCCESS;
+            }
         }
     }
 
-    return SUCCESS;
+    return E_FAIL;
 }
 
 void _pio_format(int channel, char* fmt, va_list va) {
