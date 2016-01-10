@@ -3,6 +3,7 @@
 #include <flags.h>
 #include <numbers.h>
 #include <common.h>
+#include <error.h>
 
 #include "pio.h"
 #include "circular_buffer.h"
@@ -81,7 +82,61 @@ int pio_set_speed(int channel, int speed) {
         break;
     case 2400:
         *high = 0x0;
-        *low = 0x90;
+        *low = 0xBF;
+        break;
+    default:
+        return E_FAIL;
+        break;
+    }
+
+    return SUCCESS;
+}
+
+int pio_set_parity(int channel, int parity) {
+    int* high = ADDRESS_OF_UART(channel, UART_LCRH_OFFSET);
+
+    switch (parity) {
+    case PARITY_ON:
+        set_flags(high, PEN_MASK);
+        break;
+    case PARITY_OFF:
+        clear_flags(high, PEN_MASK);
+        break;
+    default:
+        return E_FAIL;
+        break;
+    }
+
+    return SUCCESS;
+}
+
+int pio_set_wlen(int channel, int wlen) {
+    int* high = ADDRESS_OF_UART(channel, UART_LCRH_OFFSET);
+
+    switch (wlen) {
+    case WLEN_8BIT:
+        set_flags(high, WLEN_MASK);
+        break;
+    case WLEN_5BIT:
+        clear_flags(high, WLEN_MASK);
+        break;
+    default:
+        return E_FAIL;
+        break;
+    }
+
+    return SUCCESS;
+}
+
+int pio_set_stop_bits(int channel, int stop_bits) {
+    int* high = ADDRESS_OF_UART(channel, UART_LCRH_OFFSET);
+
+    switch (stop_bits) {
+    case STOP_BITS_1:
+        clear_flags(high, STP2_MASK);
+        break;
+    case STOP_BITS_2:
+        set_flags(high, STP2_MASK);
         break;
     default:
         return E_FAIL;
@@ -92,7 +147,6 @@ int pio_set_speed(int channel, int speed) {
 }
 
 int _pio_write_char(int channel, char c) {
-    // int* flags = ADDRESS_OF_UART(channel, UART_FLAG_OFFSET);
     int* data = ADDRESS_OF_UART(channel, UART_DATA_OFFSET);
 
     *data = c;
@@ -101,7 +155,6 @@ int _pio_write_char(int channel, char c) {
 }
 
 int _pio_read_char(int channel, char* c) {
-    // int* flags = ADDRESS_OF_UART(channel, UART_FLAG_OFFSET);
     int* data = ADDRESS_OF_UART(channel, UART_DATA_OFFSET);
 
     *c = *data;
@@ -115,7 +168,7 @@ int pio_fetch(int channel) {
     char c;
 
     if (pio_receive_buffer_full(*flags) && circular_buffer_full(c_buffer) == FALSE) {
-        if (_pio_read_char(channel, &c) == SUCCESS) {
+        if (SUCCEEDED(_pio_read_char(channel, &c))) {
             circular_buffer_push(c_buffer, c);
         }
     }
@@ -129,8 +182,8 @@ int pio_flush(int channel) {
     char c;
 
     while (!pio_transmit_buffer_full(*flags) && circular_buffer_empty(c_buffer) == FALSE) {
-        if (circular_buffer_get(c_buffer, &c) == SUCCESS) {
-            if (_pio_write_char(channel, c) == SUCCESS) {
+        if (SUCCEEDED(circular_buffer_get(c_buffer, &c))) {
+            if (SUCCEEDED(_pio_write_char(channel, c))) {
                 circular_buffer_pop(c_buffer);
             }
         }
@@ -138,6 +191,28 @@ int pio_flush(int channel) {
 
     return SUCCESS;
 }
+
+int pio_get_char(int channel, char* c) {
+
+    if (channel == COM1) {
+        if (circular_buffer_empty(&com1_in_buffer) == FALSE) {
+            if (SUCCEEDED(circular_buffer_get(&com1_in_buffer, c))) {
+                circular_buffer_pop(&com1_in_buffer);
+                return SUCCESS;
+            }
+        }
+    } else {
+        if (circular_buffer_empty(&com2_in_buffer) == FALSE) {
+            if (SUCCEEDED(circular_buffer_get(&com2_in_buffer, c))) {
+                circular_buffer_pop(&com2_in_buffer);
+                return SUCCESS;
+            }
+        }
+    }
+
+    return E_FAIL;
+}
+
 
 int pio_put_char(int channel, char c) {
 
@@ -170,31 +245,9 @@ int pio_put_char_array(int channel, char* buffer, int buffer_size) {
     return SUCCESS;
 }
 
-int pio_get_char(int channel, char* c) {
-
-    if (channel == COM1) {
-        if (circular_buffer_empty(&com1_in_buffer) == FALSE) {
-            if (circular_buffer_get(&com1_in_buffer, c) == SUCCESS) {
-                circular_buffer_pop(&com1_in_buffer);
-                return SUCCESS;
-            }
-        }
-    } else {
-        if (circular_buffer_empty(&com2_in_buffer) == FALSE) {
-            if (circular_buffer_get(&com2_in_buffer, c) == SUCCESS) {
-                circular_buffer_pop(&com2_in_buffer);
-                return SUCCESS;
-            }
-        }
-    }
-
-    return E_FAIL;
-}
-
 void _pio_format(int channel, char* fmt, va_list va) {
-    char buffer[12];
+    char buffer[256];
     char ch;
-    int min_digits;
 
     while ((ch = *(fmt++))) {
 
@@ -203,30 +256,20 @@ void _pio_format(int channel, char* fmt, va_list va) {
         } else {
             ch = *(fmt++);
 
-            min_digits = 0;
             switch (ch) {
-            case '0':
-            case '1':
-            case '2':
-            case '3':
-            case '4':
-            case '5':
-            case '6':
-            case '7':
-            case '8':
-            case '9':
-                min_digits = (ch - '0');
+            case 'c':
+                pio_put_char(channel, va_arg(va, char));
                 break;
-            }
-
-            switch (ch) {
+            case 's':
+                pio_put_char_array(channel, va_arg(va, char*), 256);
+                break;
             case 'u':
-                put_unsigned_int_in_buffer(va_arg(va, unsigned int), buffer, 12);
-                pio_put_char_array(channel, buffer, 12);
+                put_unsigned_int_in_buffer(va_arg(va, unsigned int), buffer, 256);
+                pio_put_char_array(channel, buffer, 256);
                 break;
             case 'd':
-                put_int_in_buffer(va_arg(va, int), buffer, 12);
-                pio_put_char_array(channel, buffer, 12);
+                put_int_in_buffer(va_arg(va, int), buffer, 256);
+                pio_put_char_array(channel, buffer, 256);
                 break;
             }
 

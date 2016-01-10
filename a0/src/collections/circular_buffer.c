@@ -1,4 +1,5 @@
 #include <error.h>
+#include <common.h>
 
 #include "circular_buffer.h"
 
@@ -14,6 +15,21 @@ inline int circular_buffer_empty(circular_buffer_t* c_buffer) {
 
 inline int circular_buffer_full(circular_buffer_t* c_buffer) {
     return (c_buffer->idx_start == ((c_buffer->idx_end + 1) % c_buffer->size));
+}
+
+inline int circular_buffer_has_room(circular_buffer_t* c_buffer, int room) {
+    int i = c_buffer->idx_end + 1;
+
+    while (room > 0) {
+        if (i == c_buffer->idx_start) {
+            return FALSE;
+        }
+
+        i = (i + 1) % c_buffer->size;
+        room -= 1;
+    }
+
+    return TRUE;
 }
 
 int circular_buffer_push(circular_buffer_t* c_buffer, char c) {

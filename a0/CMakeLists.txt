@@ -10,14 +10,13 @@ project("CS452 Assignment 0" NONE)
 
 set(A0_OUTPUT "a0_v6lai.elf")
 set(LIB_COLLECTIONS "libcollections")
-set(LIB_IO "libpio")
 
 set(XCC "gcc")
 set(AS "as")
 set(AR "ar")
 set(LD "ld")
 
-set(CFLAGS -g -c -fPIC -Wall -I. -I../include -I../src -I../src/collections -I../src/clock -I../src/io -mcpu=arm920t -msoft-float)
+set(CFLAGS -g -c -fPIC -Wall -I. -I../include -I../src -I../src/collections -I../src/clock -I../src/io -I../src/trains -mcpu=arm920t -msoft-float)
 # -g: include hooks for gdb
 # -c: only compile
 # -fpic: emit position-independent code
@@ -34,15 +33,9 @@ set(LDFLAGS -init main -Map a0.map -N -T ../src/orex.ld -L/u/wbcowan/gnuarm-4.0.
 
 
 add_custom_command(
-    OUTPUT circular_buffer.s
-    COMMAND ${XCC} -S ${CFLAGS} -o circular_buffer.s ../src/collections/circular_buffer.c
-    DEPENDS src/collections/circular_buffer.c src/collections/circular_buffer.h
-    )
-
-add_custom_command(
     OUTPUT circular_buffer.o
-    COMMAND ${AS} ${ASFLAGS} -o circular_buffer.o circular_buffer.s
-    DEPENDS circular_buffer.s
+    COMMAND ${XCC} ${CFLAGS} -o circular_buffer.o ../src/collections/circular_buffer.c
+    DEPENDS src/collections/circular_buffer.c src/collections/circular_buffer.h
     )
 
 add_custom_command(
@@ -58,68 +51,70 @@ add_custom_target(
 
 
 
-
-
-add_custom_command(
-    OUTPUT pio.s
-    COMMAND ${XCC} -S ${CFLAGS} -o pio.s ../src/io/pio.c
-    DEPENDS src/io/pio.c include/pio.h
-    )
-
 add_custom_command(
     OUTPUT pio.o
-    COMMAND ${AS} ${ASFLAGS} -o pio.o pio.s
-    DEPENDS pio.s
+    COMMAND ${XCC} ${CFLAGS} -o pio.o ../src/io/pio.c
+    DEPENDS src/io/pio.c src/io/pio.h
     )
 
 add_custom_command(
-    OUTPUT libpio.a
-    COMMAND ${AR} ${ARFLAGS} libpio.a pio.o
-    DEPENDS pio.o
-    )
-
-add_custom_target(
-    ${LIB_IO}
-    DEPENDS libpio.a
-    )
-
-
-
-
-add_custom_command(
-    OUTPUT clock.s
-    COMMAND ${XCC} -S ${CFLAGS} -o clock.s ../src/clock/clock.c
-    DEPENDS src/clock/clock.c src/clock/clock.h
+    OUTPUT timer.o
+    COMMAND ${XCC} ${CFLAGS} -o timer.o ../src/clock/timer.c
+    DEPENDS src/clock/timer.c src/clock/timer.h
     )
 
 add_custom_command(
     OUTPUT clock.o
-    COMMAND ${AS} ${ASFLAGS} -o clock.o clock.s
-    DEPENDS clock.s
+    COMMAND ${XCC} ${CFLAGS} -o clock.o ../src/clock/clock.c
+    DEPENDS src/clock/clock.c src/clock/clock.h
     )
 
 add_custom_command(
-    OUTPUT a0.s
-    COMMAND ${XCC} -S ${CFLAGS} -o a0.s ../src/main.c
-    DEPENDS src/main.c
+    OUTPUT cio.o
+    COMMAND ${XCC} ${CFLAGS} -o cio.o ../src/io/cio.c
+    DEPENDS src/io/cio.c src/io/cio.h src/io/pio.h
+    )
+
+add_custom_command(
+    OUTPUT trains.o
+    COMMAND ${XCC} ${CFLAGS} -o trains.o ../src/trains/trains.c
+    DEPENDS src/trains/trains.c src/trains/trains.h
+    )
+
+add_custom_command(
+    OUTPUT switches.o
+    COMMAND ${XCC} ${CFLAGS} -o switches.o ../src/trains/switches.c
+    DEPENDS src/trains/switches.c src/trains/switches.h
     )
 
 add_custom_command(
     OUTPUT a0.o
-    COMMAND ${AS} ${ASFLAGS} -o a0.o a0.s
-    DEPENDS a0.s
+    COMMAND ${XCC} ${CFLAGS} -o a0.o ../src/main.c
+    DEPENDS src/main.c src/io/pio.h
+    )
+
+
+set(OBJECT_FILES
+    a0.o
+    clock.o
+    circular_buffer.o
+    cio.o
+    pio.o
+    switches.o
+    timer.o
+    trains.o
     )
 
 add_custom_command(
     OUTPUT a0.elf
-    COMMAND ${LD} ${LDFLAGS} -o a0.elf a0.o clock.o -lpio -lcollections -lgcc
-    DEPENDS a0.o clock.o
+    COMMAND ${LD} ${LDFLAGS} -o a0.elf ${OBJECT_FILES} -lcollections -lgcc
+    DEPENDS ${OBJECT_FILES}
     )
 
 add_custom_target(
     ${A0_OUTPUT}
     ALL
-    DEPENDS a0.elf libpio.a
+    DEPENDS a0.elf
     )
 
 
@@ -134,11 +129,6 @@ add_custom_command(
 
 add_dependencies(
     ${A0_OUTPUT}
-    ${LIB_IO}
     ${LIB_COLLECTIONS}
     )
 
-add_dependencies(
-    ${LIB_IO}
-    ${LIB_COLLECTIONS}
-    )
