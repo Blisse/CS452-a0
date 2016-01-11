@@ -34,18 +34,18 @@ void pretty_print_clock(int hundred_ms) {
 
     pretty_move_cursor(5, 3);
 
-    pio_print_f(COM2, "CLK");
+    pio_print_f(COM2, TEXT_CYAN "CLK" TEXT_RESET);
 
     pretty_move_cursor(5, 7);
-    pio_print_f(COM2, "%u", ((((hundred_ms / 10) / 60) % 60) % 10));
+    pio_print_f(COM2, "%d", ((((hundred_ms / 10) / 60) % 60) % 10));
 
     pretty_move_cursor(5, 8);
     pio_print_f(COM2, ":");
-    pio_print_f(COM2, "%u", (hundred_ms / 10) % 60);
+    pio_print_f(COM2, "%d", (hundred_ms / 10) % 60);
 
     pretty_move_cursor(5, 11);
     pio_print_f(COM2, ":");
-    pio_print_f(COM2, "%u", (hundred_ms % 10));
+    pio_print_f(COM2, "%d", (hundred_ms % 10));
 
     pio_flush(COM2);
 
@@ -60,7 +60,7 @@ void pretty_print_switches(switch_t* switches, int size, int sw, char dir) {
         if (switches[i].number == sw) {
 
             pretty_move_cursor(line, 4);
-            pio_print_f(COM2, "s%d", switches[i].number);
+            pio_print_f(COM2, TEXT_YELLOW "s%d" TEXT_RESET, switches[i].number);
 
             pretty_move_cursor(line, 9);
             pio_print_f(COM2, "%c", switches[i].position);

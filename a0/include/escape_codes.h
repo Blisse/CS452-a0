@@ -10,5 +10,6 @@
 #define TEXT_GREEN      "\033[32m"
 #define TEXT_RED        "\033[31m"
 #define TEXT_CYAN       "\033[36m"
+#define TEXT_YELLOW     "\033[33m"
 
 #define ENDL            "\r\n"
