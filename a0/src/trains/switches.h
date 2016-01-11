@@ -12,4 +12,10 @@ typedef struct switch_t switch_t;
 
 void switches_reset();
 void switches_init();
-void switch_setup();
+void sensors_init();
+void s_switches();
+int switches_set_direction(int sw, char direction);
+int switches_set_curved();
+char* switches_get_sensor();
+int switches_request_sensor();
+int switches_handle_sensor(char c);

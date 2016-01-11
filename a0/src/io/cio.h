@@ -18,11 +18,11 @@
 #define COMMAND_CHAR_DONE_1     '\r'
 #define COMMAND_CHAR_DONE_2     '\n'
 
-void cio_setup();
+void s_cio();
 
 void cio_buffer_reset();
 
-void cio_update();
+void cio_read();
 
 int cio_update_console(char c);
 

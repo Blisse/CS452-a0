@@ -1,18 +1,19 @@
 #include "cio.h"
-#include "common.h"
 #include "pio.h"
 #include "trains.h"
+#include "switches.h"
+#include "io_controller.h"
+#include "pretty_io.h"
 
+#include <common.h>
 #include <numbers.h>
 
-#define COMMAND_BUFFER_SIZE     12
+#define COMMAND_BUFFER_SIZE     40
 
-static int quit;
-static char command_buffer[COMMAND_BUFFER_SIZE];
+static char command_buffer[COMMAND_BUFFER_SIZE+1];
 static int command_buffer_idx;
 
-void cio_setup() {
-    quit = FALSE;
+void s_cio() {
     cio_buffer_reset();
 }
 
@@ -20,36 +21,19 @@ void cio_buffer_reset() {
     int i;
 
     command_buffer_idx = 0;
-    for (i = 0; i < COMMAND_BUFFER_SIZE; i++) {
+    for (i = 0; i < COMMAND_BUFFER_SIZE+1; i++) {
         command_buffer[i] = '\0';
     }
 }
 
-void cio_update() {
+void cio_read() {
     char ch;
 
     if (SUCCEEDED(pio_get_char(COM2, &ch))) {
 
         cio_update_console(ch);
 
-        if (ch == COMMAND_CHAR_DONE_1) {
-
-            pio_put_char(COM2, '\n');
-
-            if (cio_send_command(command_buffer, COMMAND_BUFFER_SIZE)) {
-
-            }
-
-            cio_buffer_reset();
-
-
-        } else if (command_buffer_idx < COMMAND_BUFFER_SIZE) {
-
-            command_buffer[command_buffer_idx++] = ch;
-
-        }
-
-   }
+    }
 
 }
 
@@ -57,13 +41,34 @@ int cio_update_console(char c) {
 
     if (!is_number(c)
         && !is_alpha(c)
+        && (c != 8) // backspace
         && (c != ' ')
         && (c != '\r')
         && (c != '\n')) {
         return E_FAIL;
     }
 
-    pio_print_f(COM2, "%c", c);
+    if (c == 8) {
+
+        if (command_buffer_idx > 0) {
+            command_buffer_idx -= 1;
+        }
+
+        command_buffer[command_buffer_idx] = '\0';
+
+    } else if (c == COMMAND_CHAR_DONE_1) {
+
+        cio_send_command(command_buffer, COMMAND_BUFFER_SIZE);
+
+        cio_buffer_reset();
+
+    } else if (command_buffer_idx < COMMAND_BUFFER_SIZE) {
+
+        command_buffer[command_buffer_idx++] = c;
+
+    }
+
+    pretty_print_command(command_buffer, COMMAND_BUFFER_SIZE);
 
     return SUCCESS;
 }
@@ -71,15 +76,15 @@ int cio_update_console(char c) {
 int cio_send_command(char* buffer, int buffer_size) {
 
     if (SUCCEEDED(cio_send_train_command(command_buffer, buffer_size))) {
-        pio_print_f(COM2, "Send Train\r\n");
+
     } else if (SUCCEEDED(cio_send_reverse_command(command_buffer, buffer_size))) {
-        pio_print_f(COM2, "Send Reverse\r\n");
+
     } else if (SUCCEEDED(cio_send_switch_command(command_buffer, buffer_size))) {
-        pio_print_f(COM2, "Send Switch\r\n");
+
     } else if (SUCCEEDED(cio_send_halt_command(command_buffer, buffer_size))) {
-        pio_print_f(COM2, "Send Halt\r\n");
+
     } else {
-        pio_print_f(COM2, "No command\r\n");
+
         return E_FAIL;
     }
 
@@ -112,8 +117,6 @@ int cio_send_train_command(char* buffer, int buffer_size) {
     train = char_array_to_int(&command_buffer[i], &steps);
     i += steps;
 
-    pio_print_f(COM2, "train: %d\r\n", train);
-
     if (command_buffer[i++] != COMMAND_CHAR_SPACE) {
         return E_FAIL;
     }
@@ -125,8 +128,6 @@ int cio_send_train_command(char* buffer, int buffer_size) {
     steps = 0;
     speed = char_array_to_int(&command_buffer[i], &steps);
     i += steps;
-
-    pio_print_f(COM2, "speed: %d\r\n", speed);
 
     train_set_speed(train, speed);
 
@@ -150,7 +151,7 @@ int cio_send_reverse_command(char* buffer, int buffer_size) {
         return E_FAIL;
     }
 
-    if (!is_number(command_buffer[i++])) {
+    if (!is_number(command_buffer[i])) {
         return E_FAIL;
     }
 
@@ -189,8 +190,6 @@ int cio_send_switch_command(char* buffer, int buffer_size) {
     track_switch = char_array_to_int(&command_buffer[i], &steps);
     i += steps;
 
-    pio_print_f(COM2, "switch: %d\r\n", track_switch);
-
     if (command_buffer[i++] != COMMAND_CHAR_SPACE) {
         return E_FAIL;
     }
@@ -202,9 +201,7 @@ int cio_send_switch_command(char* buffer, int buffer_size) {
 
     direction = command_buffer[i++];
 
-    pio_print_f(COM2, "direction: %c\r\n", direction);
-
-    track_set_switch(track_switch, direction);
+    switches_set_direction(track_switch, direction);
 
     return SUCCESS;
 }
@@ -216,12 +213,7 @@ int cio_send_halt_command(char* buffer, int buffer_size) {
         return E_FAIL;
     }
 
-    quit = TRUE;
+    io_controller_quit();
 
     return SUCCESS;
-}
-
-
-int cio_quit() {
-    return quit;
 }

@@ -1,4 +1,8 @@
 #include "timer.h"
+#include "io_controller.h"
+#include "trains_controller.h"
+#include "clock.h"
+#include "pio.h"
 
 #include <flags.h>
 #include <ts7200.h>
@@ -15,11 +19,27 @@
 #define TIMER3_ADDRESS_CONTROL  ADDRESS_OF_TIMER(TIMER3, CRTL_OFFSET);
 
 static unsigned int total_ticks;
+static unsigned int total_50ms_ticks;
 static unsigned int last_tick;
 
-void timer_setup() {
+static unsigned int ticks_50ms_last;
+static unsigned int ticks_50ms;
+
+static unsigned int elapsed_250ms;
+static unsigned int elapsed_100ms;
+static unsigned int elapsed_50ms;
+
+void s_timer() {
     total_ticks = 0;
-    last_tick = 0;
+    total_50ms_ticks = 0;
+    last_tick = 0xFFFFFFFF;
+
+    ticks_50ms_last = 0;
+    ticks_50ms = 0;
+
+    elapsed_250ms = 0;
+    elapsed_100ms = 0;
+    elapsed_50ms = 0;
 }
 
 int timer_enable() {
@@ -44,9 +64,6 @@ int timer_enable() {
     // roll-back from max int
     *load = 0xFFFFFFFF;
 
-    // initialize the last tick from max int
-    last_tick = 0xFFFFFFFF;
-
     // write to start timer
     *control_addr = control;
 
@@ -54,6 +71,7 @@ int timer_enable() {
 }
 
 int timer_update_ticks() {
+
     int current_tick = *TIMER3_ADDRESS_VALUE;
 
     if (last_tick < current_tick) {
@@ -63,11 +81,65 @@ int timer_update_ticks() {
         total_ticks += (last_tick - current_tick);
     }
 
+    ticks_50ms = total_ticks / 100;
+
+    if (ticks_50ms != ticks_50ms_last) {
+        total_50ms_ticks += 1;
+
+        if (total_50ms_ticks % 2 == 0) {
+            elapsed_100ms = 1;
+        }
+
+        if (total_50ms_ticks % 5 == 0) {
+            elapsed_250ms = 1;
+        }
+
+        elapsed_50ms = 1;
+
+        ticks_50ms_last = ticks_50ms;
+    }
+
     last_tick = current_tick;
 
     return SUCCESS;
 }
 
-int timer_get_ticks() {
-    return total_ticks;
+void timer_invoke() {
+
+    io_controller_fetch();
+
+    io_controller_on_ms();
+
+    io_controller_flush();
+
+    if (elapsed_50ms) {
+        elapsed_50ms = 0;
+
+        io_controller_fetch();
+
+        trains_controller_on_50ms();
+    }
+
+    io_controller_flush();
+
+    if (elapsed_100ms) {
+        elapsed_100ms = 0;
+
+        clock_on_100ms();
+    }
+
+    io_controller_flush();
+
+    if (elapsed_250ms) {
+        elapsed_250ms = 0;
+
+        trains_controller_on_250ms();
+    }
+
+    io_controller_flush();
+
+}
+
+int timer_get_50_ms() {
+    return total_50ms_ticks;
 }

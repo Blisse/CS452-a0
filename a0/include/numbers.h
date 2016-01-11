@@ -1,5 +1,7 @@
 #pragma once
 
+// Most functions here referenced from bwio.c
+
 static inline int is_number(char ch) {
     return (ch >= '0' && ch <= '9');
 }

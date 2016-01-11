@@ -13,11 +13,15 @@ static circular_buffer_t com2_out_buffer;
 static circular_buffer_t com1_in_buffer;
 static circular_buffer_t com2_in_buffer;
 
-void pio_setup() {
+void s_pio() {
     circular_buffer_init(&com1_out_buffer);
     circular_buffer_init(&com2_out_buffer);
     circular_buffer_init(&com1_in_buffer);
     circular_buffer_init(&com2_in_buffer);
+}
+
+int pio_clear_to_send(int flags) {
+    return are_all_set(flags, CTS_MASK);
 }
 
 int pio_receive_buffer_empty(int flags) {
@@ -167,7 +171,7 @@ int pio_fetch(int channel) {
     circular_buffer_t* c_buffer = IN_BUFFER(channel);
     char c;
 
-    if (pio_receive_buffer_full(*flags) && circular_buffer_full(c_buffer) == FALSE) {
+    if (!pio_receive_buffer_empty(*flags) && circular_buffer_full(c_buffer) == FALSE) {
         if (SUCCEEDED(_pio_read_char(channel, &c))) {
             circular_buffer_push(c_buffer, c);
         }
@@ -181,7 +185,9 @@ int pio_flush(int channel) {
     circular_buffer_t* c_buffer = OUT_BUFFER(channel);
     char c;
 
-    while (!pio_transmit_buffer_full(*flags) && circular_buffer_empty(c_buffer) == FALSE) {
+    while (!pio_transmit_buffer_full(*flags)
+        // && ((channel == COM1 && pio_clear_to_send(*flags)) || channel == COM2)
+        && circular_buffer_empty(c_buffer) == FALSE) {
         if (SUCCEEDED(circular_buffer_get(c_buffer, &c))) {
             if (SUCCEEDED(_pio_write_char(channel, c))) {
                 circular_buffer_pop(c_buffer);
@@ -250,7 +256,6 @@ void _pio_format(int channel, char* fmt, va_list va) {
     char ch;
 
     while ((ch = *(fmt++))) {
-
         if (ch != '%') {
             pio_put_char(channel, ch);
         } else {
@@ -272,7 +277,6 @@ void _pio_format(int channel, char* fmt, va_list va) {
                 pio_put_char_array(channel, buffer, 256);
                 break;
             }
-
         }
     }
 }

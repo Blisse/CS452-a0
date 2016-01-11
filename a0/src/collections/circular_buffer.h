@@ -1,9 +1,9 @@
 #pragma once
 
-#define CIRCULAR_BUFFER_SIZE 256;
+#define CIRCULAR_BUFFER_SIZE 2056;
 
 struct circular_buffer_t {
-    char buffer[256];
+    char buffer[2056];
     int size;
     int idx_start;
     int idx_end;

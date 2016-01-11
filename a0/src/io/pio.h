@@ -18,7 +18,7 @@
 #define WLEN_8BIT   4
 #define WLEN_5BIT   1
 
-void pio_setup();
+void s_pio();
 
 int pio_receive_buffer_empty(int flags);
 int pio_transmit_buffer_empty(int flags);

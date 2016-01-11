@@ -1,22 +1,27 @@
 #define FOREVER for( ; ; )
 
 #include "clock.h"
-#include "trains.h"
-#include "timer.h"
-#include "pio.h"
 #include "cio.h"
+#include "io_controller.h"
+#include "pio.h"
+#include "pretty_io.h"
 #include "switches.h"
+#include "timer.h"
+#include "trains.h"
+#include "trains_controller.h"
 
 #include <error.h>
 #include <escape_codes.h>
 
-void setup() {
-    clock_setup();
-    cio_setup();
-    switch_setup();
-    timer_setup();
-    train_setup();
-    pio_setup();
+void initialize_statics() {
+    s_clock();
+    s_cio();
+    s_io_controller();
+    s_pio();
+    s_switches();
+    s_timer();
+    s_trains();
+    s_trains_controller();
 }
 
 void initialize_uart() {
@@ -28,64 +33,49 @@ void initialize_uart() {
 // Stop bits = 2
 // Parity = None
 // Word size = 8 bits
-
     pio_set_fifo(COM1, FIFO_OFF);
     pio_set_speed(COM1, 2400);
     pio_set_stop_bits(COM1, STOP_BITS_2);
-    // pio_set_parity(COM1, PARITY_OFF);
     pio_set_wlen(COM1, WLEN_8BIT);
 
-// COM1
+// COM2
 // FIFO OFF
 // Baud rate = 115200
     pio_set_fifo(COM2, FIFO_OFF);
     pio_set_speed(COM2, 115200);
+
 }
 
 void initialize_timer() {
     timer_enable();
 }
 
+void initialize_switches() {
+    switches_set_curved();
+}
+
 void print_start_screen() {
-    pio_print_f(COM2, "\r\n~~RTOS v0.6~~\r\n");
-    pio_flush(COM2);
-
-    pio_print_f(COM2, "Timer Enabled\r\n");
-    pio_print_f(COM2, "First Tick: %u \r\n", timer_get_ticks());
-    pio_flush(COM2);
-
-    pio_print_f(COM2, "-------------\r\n");
-    pio_print_f(COM2, "Tests Started\r\n");
-    pio_print_f(COM2, "Test #1: %d\r\n", 1);
-    pio_print_f(COM2, "Test #2: %d %d\r\n", 2, 2);
-    pio_print_f(COM2, "Test #3: %d %u %u\r\n", 3, 3, 3);
-    pio_print_f(COM2, "Test #4: %u %d %u %d\r\n", 4, 3, 2, 1);
-    pio_print_f(COM2, "\033[32m" "Tests Completed\r\n" "\033[0m");
-    pio_print_f(COM2, "---------------\r\n");
-    pio_flush(COM2);
+    pretty_print_header();
 }
 
 int main(int argc, char* argv[]) {
 
-    setup();
+    initialize_statics();
     initialize_uart();
     initialize_timer();
+
     print_start_screen();
+    initialize_switches();
 
-    FOREVER {
+    while (io_controller_running()) {
 
-        pio_fetch(COM1);
-        pio_fetch(COM2);
+        timer_update_ticks();
+        timer_invoke();
 
-        clock_update_ticks();
-
-        pio_flush(COM1);
-        pio_flush(COM2);
-
-        if (cio_quit()) {
-            break;
-        }
     }
+
+    pio_print_f(COM2, SCREEN_CLEAR);
+    pio_flush(COM2);
 
     return SUCCESS;
 }

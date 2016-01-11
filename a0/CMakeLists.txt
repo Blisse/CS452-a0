@@ -52,18 +52,6 @@ add_custom_target(
 
 
 add_custom_command(
-    OUTPUT pio.o
-    COMMAND ${XCC} ${CFLAGS} -o pio.o ../src/io/pio.c
-    DEPENDS src/io/pio.c src/io/pio.h
-    )
-
-add_custom_command(
-    OUTPUT timer.o
-    COMMAND ${XCC} ${CFLAGS} -o timer.o ../src/clock/timer.c
-    DEPENDS src/clock/timer.c src/clock/timer.h
-    )
-
-add_custom_command(
     OUTPUT clock.o
     COMMAND ${XCC} ${CFLAGS} -o clock.o ../src/clock/clock.c
     DEPENDS src/clock/clock.c src/clock/clock.h
@@ -72,13 +60,25 @@ add_custom_command(
 add_custom_command(
     OUTPUT cio.o
     COMMAND ${XCC} ${CFLAGS} -o cio.o ../src/io/cio.c
-    DEPENDS src/io/cio.c src/io/cio.h src/io/pio.h
+    DEPENDS src/io/cio.c src/io/cio.h
     )
 
 add_custom_command(
-    OUTPUT trains.o
-    COMMAND ${XCC} ${CFLAGS} -o trains.o ../src/trains/trains.c
-    DEPENDS src/trains/trains.c src/trains/trains.h
+    OUTPUT io_controller.o
+    COMMAND ${XCC} ${CFLAGS} -o io_controller.o ../src/io/io_controller.c
+    DEPENDS src/io/io_controller.c src/io/io_controller.h
+    )
+
+add_custom_command(
+    OUTPUT pretty_io.o
+    COMMAND ${XCC} ${CFLAGS} -o pretty_io.o ../src/io/pretty_io.c
+    DEPENDS src/io/pretty_io.c src/io/pretty_io.h
+    )
+
+add_custom_command(
+    OUTPUT pio.o
+    COMMAND ${XCC} ${CFLAGS} -o pio.o ../src/io/pio.c
+    DEPENDS src/io/pio.c src/io/pio.h
     )
 
 add_custom_command(
@@ -88,21 +88,40 @@ add_custom_command(
     )
 
 add_custom_command(
+    OUTPUT timer.o
+    COMMAND ${XCC} ${CFLAGS} -o timer.o ../src/clock/timer.c
+    DEPENDS src/clock/timer.c src/clock/timer.h
+    )
+
+add_custom_command(
+    OUTPUT trains.o
+    COMMAND ${XCC} ${CFLAGS} -o trains.o ../src/trains/trains.c
+    DEPENDS src/trains/trains.c src/trains/trains.h
+    )
+
+add_custom_command(
+    OUTPUT trains_controller.o
+    COMMAND ${XCC} ${CFLAGS} -o trains_controller.o ../src/trains/trains_controller.c
+    DEPENDS src/trains/trains_controller.c src/trains/trains_controller.h
+    )
+
+add_custom_command(
     OUTPUT a0.o
     COMMAND ${XCC} ${CFLAGS} -o a0.o ../src/main.c
     DEPENDS src/main.c src/io/pio.h
     )
 
-
 set(OBJECT_FILES
     a0.o
     clock.o
-    circular_buffer.o
     cio.o
+    io_controller.o
+    pretty_io.o
     pio.o
     switches.o
     timer.o
     trains.o
+    trains_controller.o
     )
 
 add_custom_command(
@@ -116,8 +135,6 @@ add_custom_target(
     ALL
     DEPENDS a0.elf
     )
-
-
 
 
 add_custom_command(
